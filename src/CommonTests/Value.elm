@@ -26,4 +26,4 @@ map fn (Value n) =
 
 toString : Value -> String
 toString (Value n) =
-    "Value " ++ String.fromInt n
+    String.fromInt n

@@ -321,24 +321,20 @@ updateWithApi c update dict =
         Remove k ->
             c.remove |> Maybe.map (\remove -> remove k dict)
 
-        Update k ->
-            c.update
-                |> Maybe.map
-                    (\update_ ->
-                        update_ k
-                            (\maybeValue ->
-                                case maybeValue of
-                                    Nothing ->
-                                        Just (Value 1)
+        UpdateNNJN k ->
+            c.update |> Maybe.map (\update_ -> update_ k nothingToNothingJustToNothing dict)
 
-                                    Just (Value n) ->
-                                        Just (Value (n + 1))
-                            )
-                            dict
-                    )
+        UpdateNNJJ k ->
+            c.update |> Maybe.map (\update_ -> update_ k nothingToNothingJustToJust dict)
+
+        UpdateNJJN k ->
+            c.update |> Maybe.map (\update_ -> update_ k nothingToJustJustToNothing dict)
+
+        UpdateNJJJ k ->
+            c.update |> Maybe.map (\update_ -> update_ k nothingToJustJustToJust dict)
 
         Map ->
-            c.map |> Maybe.map (\map -> map (\_ v -> Value.map ((+) 1) v) dict)
+            c.map |> Maybe.map (\map -> map (\_ v -> Value.map (\n -> n + 1) v) dict)
 
         Filter ->
             c.filter |> Maybe.map (\filter -> filter (\_ v -> modBy 2 (Value.unwrap v) == 0) dict)
@@ -357,6 +353,46 @@ updateWithApi c update dict =
             Maybe.map2 (\diff fromList -> diff dict (fromList other))
                 c.diff
                 c.fromList
+
+
+nothingToNothingJustToNothing : Maybe Value -> Maybe Value
+nothingToNothingJustToNothing mv =
+    case mv of
+        Nothing ->
+            Nothing
+
+        Just _ ->
+            Nothing
+
+
+nothingToNothingJustToJust : Maybe Value -> Maybe Value
+nothingToNothingJustToJust mv =
+    case mv of
+        Nothing ->
+            Nothing
+
+        Just v ->
+            Just (Value.map (\n -> n + 1) v)
+
+
+nothingToJustJustToNothing : Maybe Value -> Maybe Value
+nothingToJustJustToNothing mv =
+    case mv of
+        Nothing ->
+            Just (Value 1)
+
+        Just _ ->
+            Nothing
+
+
+nothingToJustJustToJust : Maybe Value -> Maybe Value
+nothingToJustJustToJust mv =
+    case mv of
+        Nothing ->
+            Just (Value 1)
+
+        Just v ->
+            Just (Value.map (\n -> n + 1) v)
 
 
 updateCoreDict : DictAPI d (Dict String Value) String Value r -> Update -> Dict String Value -> Maybe (Dict String Value)

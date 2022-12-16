@@ -8,7 +8,10 @@ import Fuzz exposing (Fuzzer)
 type Update
     = Insert String Value
     | Remove String
-    | Update String -- TODO update all the possible combinations (N->N, N->J, J->N, J->J)
+    | UpdateNNJN String -- Nothing to Nothing, Just to Nothing
+    | UpdateNNJJ String -- etc.
+    | UpdateNJJN String
+    | UpdateNJJJ String
     | Map
     | Filter
     | Union (List ( String, Value ))
@@ -21,7 +24,10 @@ fuzzer =
     Fuzz.oneOf
         [ Fuzz.map2 Insert keyFuzzer Value.fuzzer
         , Fuzz.map Remove keyFuzzer
-        , Fuzz.map Update keyFuzzer
+        , Fuzz.map UpdateNNJN keyFuzzer
+        , Fuzz.map UpdateNNJJ keyFuzzer
+        , Fuzz.map UpdateNJJN keyFuzzer
+        , Fuzz.map UpdateNJJJ keyFuzzer
         , Fuzz.constant Map
         , Fuzz.constant Filter
         , Fuzz.map Union (Fuzz.list kvFuzzer)
@@ -32,31 +38,39 @@ fuzzer =
 
 toString : Update -> String
 toString update =
-    -- TODO make these look more like function calls
     case update of
         Insert k v ->
-            "Insert \"" ++ k ++ "\" (" ++ Value.toString v ++ ")"
+            "insert \"" ++ k ++ "\" " ++ Value.toString v
 
         Remove k ->
-            "Remove \"" ++ k ++ "\""
+            "remove \"" ++ k ++ "\""
 
-        Update k ->
-            "Update \"" ++ k ++ "\""
+        UpdateNNJN k ->
+            "update \"" ++ k ++ "\" nothingToNothingJustToNothing"
+
+        UpdateNNJJ k ->
+            "update \"" ++ k ++ "\" nothingToNothingJustToJust"
+
+        UpdateNJJN k ->
+            "update \"" ++ k ++ "\" nothingToJustJustToNothing"
+
+        UpdateNJJJ k ->
+            "update \"" ++ k ++ "\" nothingToJustJustToJust"
 
         Map ->
-            "Map"
+            "map (\\_ v -> v + 1)"
 
         Filter ->
-            "Filter"
+            "filter (\\_ v -> modBy 2 v == 0)"
 
         Union list ->
-            "Union " ++ listToString list
+            "union d (fromList " ++ listToString list ++ ")"
 
         Intersect list ->
-            "Intersect " ++ listToString list
+            "intersect d (fromList " ++ listToString list ++ ")"
 
         Diff list ->
-            "Diff " ++ listToString list
+            "diff d (fromList " ++ listToString list ++ ")"
 
 
 listToString : List ( String, Value ) -> String
