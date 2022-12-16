@@ -21,7 +21,7 @@
     },
     "test-dependencies": {
         "direct": {
-            "Janiczek/architecture-test": "2.1.1",
+            "Janiczek/architecture-test": "2.1.2",
             "elm-explorations/test": "2.1.0"
         },
         "indirect": {
