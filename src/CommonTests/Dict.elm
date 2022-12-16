@@ -110,8 +110,11 @@ isDict c =
             ]
         , Test.describe "Conformance to elm/core Dict"
             [ creationConformance c
-            , Test.todo "Updating"
             , queryingConformance c
+
+            {- Updating conformance is already tested thanks to us using
+               `Update.fuzzer` in all the ArchitectureTest invocations.
+            -}
             ]
         ]
 
