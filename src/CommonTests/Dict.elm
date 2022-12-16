@@ -128,7 +128,7 @@ queryingConformance c =
                 update u ( d, cd ) =
                     Maybe.map2 (\d2 cd2 -> ( d2, cd2 ))
                         (updateDict u d)
-                        (updateCoreDict c u cd)
+                        (updateCoreDict u cd)
                         |> Maybe.withDefault ( d, cd )
 
                 testedApp : TestedApp ( d, Dict String Int ) Update
@@ -179,7 +179,7 @@ behavesLikeDictWhenCreatedVia c create =
                 update u ( d, cd ) =
                     Maybe.map2 (\d2 cd2 -> ( d2, cd2 ))
                         (updateDict u d)
-                        (updateCoreDict c u cd)
+                        (updateCoreDict u cd)
                         |> Maybe.withDefault ( d, cd )
 
                 testedApp : TestedApp ( d, Dict String Int ) Update
@@ -333,8 +333,8 @@ nothingToJustJustToJust mv =
             Just (v + 1)
 
 
-updateCoreDict : DictAPI d -> Update -> Dict String Int -> Maybe (Dict String Int)
-updateCoreDict c update dict =
+updateCoreDict : Update -> Dict String Int -> Maybe (Dict String Int)
+updateCoreDict update dict =
     updateWithApi elmCoreDict update dict
 
 

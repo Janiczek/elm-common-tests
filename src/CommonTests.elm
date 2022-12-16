@@ -7,7 +7,6 @@ module CommonTests exposing (isDict, DictAPI)
 -}
 
 import CommonTests.Dict as CDict
-import Dict exposing (Dict)
 import Test exposing (Test)
 
 
