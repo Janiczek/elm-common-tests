@@ -1,6 +1,6 @@
 {
     "type": "package",
-    "name": "Janiczek/common-tests",
+    "name": "Janiczek/elm-common-tests",
     "summary": "Test helpers for common data structures",
     "license": "BSD-3-Clause",
     "version": "1.0.0",
