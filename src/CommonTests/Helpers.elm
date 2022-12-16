@@ -2,6 +2,7 @@ module CommonTests.Helpers exposing
     ( test, test2, test3
     , withDefaultTest
     , keyFuzzer, kvFuzzer
+    , listToString, kvToString
     )
 
 {-|
@@ -9,6 +10,7 @@ module CommonTests.Helpers exposing
 @docs test, test2, test3
 @docs withDefaultTest
 @docs keyFuzzer, kvFuzzer
+@docs listToString, kvToString
 
 -}
 
@@ -57,3 +59,15 @@ keyFuzzer =
 kvFuzzer : Fuzzer ( String, Value )
 kvFuzzer =
     Fuzz.pair keyFuzzer Value.fuzzer
+
+
+kvToString : ( String, Value ) -> String
+kvToString ( k, v ) =
+    "(\"" ++ k ++ "\", " ++ Value.toString v ++ ")"
+
+
+listToString : (x -> String) -> List x -> String
+listToString valueToString list =
+    list
+        |> List.map valueToString
+        |> String.join ", "

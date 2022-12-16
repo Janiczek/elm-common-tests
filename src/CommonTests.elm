@@ -22,6 +22,6 @@ type alias DictAPI d cd k v r =
     CDict.DictAPI d cd k v r
 
 
-isDict : DictAPI d (Dict String Value) String Value r -> Test
+isDict : DictAPI d (Dict String Value) String Value (List Int) -> Test
 isDict c =
     CDict.isDict c

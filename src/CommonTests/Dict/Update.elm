@@ -1,6 +1,6 @@
 module CommonTests.Dict.Update exposing (Update(..), fuzzer, toString)
 
-import CommonTests.Helpers exposing (keyFuzzer, kvFuzzer)
+import CommonTests.Helpers exposing (keyFuzzer, kvFuzzer, kvToString, listToString)
 import CommonTests.Value as Value exposing (Value)
 import Fuzz exposing (Fuzzer)
 
@@ -64,17 +64,10 @@ toString update =
             "filter (\\_ v -> modBy 2 v == 0)"
 
         Union list ->
-            "union d (fromList " ++ listToString list ++ ")"
+            "union d (fromList " ++ listToString kvToString list ++ ")"
 
         Intersect list ->
-            "intersect d (fromList " ++ listToString list ++ ")"
+            "intersect d (fromList " ++ listToString kvToString list ++ ")"
 
         Diff list ->
-            "diff d (fromList " ++ listToString list ++ ")"
-
-
-listToString : List ( String, Value ) -> String
-listToString list =
-    list
-        |> List.map (\( k, v ) -> "(\"" ++ k ++ "\", " ++ Value.toString v ++ ")")
-        |> String.join ", "
+            "diff d (fromList " ++ listToString kvToString list ++ ")"

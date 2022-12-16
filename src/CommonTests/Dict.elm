@@ -6,12 +6,14 @@ module CommonTests.Dict exposing
 
 import ArchitectureTest exposing (TestedApp, TestedModel, TestedUpdate)
 import CommonTests.Dict.Create as Create exposing (Create(..))
+import CommonTests.Dict.Query as Query exposing (Query(..))
 import CommonTests.Dict.Update as Update exposing (Update(..))
 import CommonTests.Helpers exposing (kvFuzzer, test, test2, test3)
 import CommonTests.Value as Value exposing (Value(..))
 import Dict exposing (Dict)
-import Expect
+import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
+import Maybe.Extra as Maybe
 import Test exposing (Test)
 
 
@@ -99,7 +101,7 @@ elmCoreDict toString =
 -- TESTS
 
 
-isDict : DictAPI d (Dict String Value) String Value r -> Test
+isDict : DictAPI d (Dict String Value) String Value (List Int) -> Test
 isDict c =
     Test.describe "Dict behaviour"
         [ Test.describe "Laws of the Dict API"
@@ -109,7 +111,7 @@ isDict c =
         , Test.describe "Conformance to elm/core Dict"
             [ creationConformance c
             , Test.todo "Updating"
-            , Test.todo "Querying"
+            , queryingConformance c
             ]
         ]
 
@@ -151,8 +153,6 @@ emptyLaws c =
         ]
 
 
-{-| Creation: empty, singleton, fromList
--}
 creationConformance : DictAPI d (Dict String Value) String Value r -> Test
 creationConformance c =
     Create.all
@@ -160,28 +160,14 @@ creationConformance c =
         |> Test.describe "Creation"
 
 
-
--- Tests using random sequences of operations
-
-
-behavesLikeDictWhenCreatedVia :
-    DictAPI d (Dict String Value) String Value r
-    -> Create
-    -> Test
-behavesLikeDictWhenCreatedVia c create =
-    test2 (Create.label create)
+queryingConformance : DictAPI d (Dict String Value) String Value (List Int) -> Test
+queryingConformance c =
+    test2 "Querying"
         c.toList
-        (initFuzzer c create)
+        (initFuzzerUsingAll c)
     <|
         \label toList initFuzzer_ ->
             let
-                modelToString : ( d, Dict String Value ) -> String
-                modelToString ( dict, coreDict ) =
-                    String.join "\n"
-                        [ "Tested Dict:   " ++ c.dictToString dict
-                        , "elm/core Dict: " ++ c.elmCoreDictToString coreDict
-                        ]
-
                 updateDict : Update -> d -> Maybe d
                 updateDict u dict =
                     updateWithApi c u dict
@@ -199,7 +185,61 @@ behavesLikeDictWhenCreatedVia c create =
                     , update = ArchitectureTest.UpdateWithoutCmds update
                     , msgFuzzer = Update.fuzzer
                     , msgToString = Update.toString
-                    , modelToString = modelToString
+                    , modelToString = dictAndCoreDictToString c
+                    }
+
+                modelFuzzer : Fuzzer ( d, Dict String Value )
+                modelFuzzer =
+                    ArchitectureTest.modelFuzzer testedApp
+            in
+            Test.fuzz2 Query.fuzzer modelFuzzer label <|
+                \query ( testedDict, coreDict ) ->
+                    case queryToExpectation c query of
+                        Nothing ->
+                            {- We're passing because we don't want non-implemented Dict APIs to cause failures.
+                               We're only testing their behaviour if those functions are present.
+                               Unfortunately there is no Expect.skip and Expect.pass doesn't let us give a reason.
+                               So we skip it silently.
+                            -}
+                            Expect.pass
+
+                        Just toExpectation ->
+                            toExpectation testedDict coreDict
+
+
+
+-- Tests using random sequences of operations
+
+
+behavesLikeDictWhenCreatedVia :
+    DictAPI d (Dict String Value) String Value r
+    -> Create
+    -> Test
+behavesLikeDictWhenCreatedVia c create =
+    test2 (Create.label create)
+        c.toList
+        (initFuzzer c create)
+    <|
+        \label toList initFuzzer_ ->
+            let
+                updateDict : Update -> d -> Maybe d
+                updateDict u dict =
+                    updateWithApi c u dict
+
+                update : Update -> ( d, Dict String Value ) -> ( d, Dict String Value )
+                update u ( d, cd ) =
+                    Maybe.map2 (\d2 cd2 -> ( d2, cd2 ))
+                        (updateDict u d)
+                        (updateCoreDict c u cd)
+                        |> Maybe.withDefault ( d, cd )
+
+                testedApp : TestedApp ( d, Dict String Value ) Update
+                testedApp =
+                    { model = ArchitectureTest.FuzzedModel initFuzzer_
+                    , update = ArchitectureTest.UpdateWithoutCmds update
+                    , msgFuzzer = Update.fuzzer
+                    , msgToString = Update.toString
+                    , modelToString = dictAndCoreDictToString c
                     }
             in
             ArchitectureTest.invariantTest label testedApp <|
@@ -233,13 +273,6 @@ behavesTheSameWhenCreatedVia c initDataFuzzer toFirst toSecond label =
                                 )
                             )
 
-                modelToString : ( d, d ) -> String
-                modelToString ( first, second ) =
-                    String.join "\n"
-                        [ "First:  " ++ c.dictToString first
-                        , "Second: " ++ c.dictToString second
-                        ]
-
                 updateSingle : Update -> d -> Maybe d
                 updateSingle u dict =
                     updateWithApi c u dict
@@ -257,7 +290,7 @@ behavesTheSameWhenCreatedVia c initDataFuzzer toFirst toSecond label =
                     , update = ArchitectureTest.UpdateWithoutCmds update
                     , msgFuzzer = Update.fuzzer
                     , msgToString = Update.toString
-                    , modelToString = modelToString
+                    , modelToString = twoDictsToString c
                     }
             in
             ArchitectureTest.invariantTest label_ testedApp <|
@@ -266,8 +299,31 @@ behavesTheSameWhenCreatedVia c initDataFuzzer toFirst toSecond label =
                         |> Expect.equalLists (toList secondDict)
 
 
+dictAndCoreDictToString : DictAPI d cd k v r -> ( d, cd ) -> String
+dictAndCoreDictToString c ( dict, coreDict ) =
+    String.join "\n"
+        [ "Tested Dict:   " ++ c.dictToString dict
+        , "elm/core Dict: " ++ c.elmCoreDictToString coreDict
+        ]
+
+
+twoDictsToString : DictAPI d cd k v r -> ( d, d ) -> String
+twoDictsToString c ( first, second ) =
+    String.join "\n"
+        [ "First:  " ++ c.dictToString first
+        , "Second: " ++ c.dictToString second
+        ]
+
+
 
 -- CREATE
+
+
+initFuzzerUsingAll : DictAPI d cd String Value r -> Maybe (Fuzzer ( d, Dict String Value ))
+initFuzzerUsingAll c =
+    Create.all
+        |> Maybe.traverse (initFuzzer c)
+        |> Maybe.map Fuzz.oneOf
 
 
 initFuzzer :
@@ -404,15 +460,139 @@ updateCoreDict c update dict =
 -- QUERY
 
 
-type Query
-    = Size
-    | IsEmpty
-    | Member
-    | Get
-    | Foldl
-    | Foldr
-    | Partition
-    | Merge
-    | Keys
-    | Values
-    | ToList
+queryToExpectation : DictAPI d (Dict String Value) String Value (List Int) -> Query -> Maybe (d -> Dict String Value -> Expectation)
+queryToExpectation c query =
+    let
+        go0 :
+            (DictAPI d (Dict String Value) String Value (List Int) -> Maybe (d -> a))
+            -> (Dict String Value -> a)
+            -> Maybe (d -> Dict String Value -> Expectation)
+        go0 dictFnGetter coreDictFn =
+            dictFnGetter c
+                |> Maybe.map
+                    (\dictFn dict coreDict ->
+                        dictFn dict
+                            |> Expect.equal (coreDictFn coreDict)
+                    )
+
+        go1 :
+            (DictAPI d (Dict String Value) String Value (List Int) -> Maybe (x1 -> d -> a))
+            -> (x1 -> Dict String Value -> a)
+            -> x1
+            -> Maybe (d -> Dict String Value -> Expectation)
+        go1 dictFnGetter coreDictFn arg1 =
+            dictFnGetter c
+                |> Maybe.map
+                    (\dictFn dict coreDict ->
+                        dictFn arg1 dict
+                            |> Expect.equal (coreDictFn arg1 coreDict)
+                    )
+
+        go2 :
+            (DictAPI d (Dict String Value) String Value (List Int) -> Maybe (x1 -> x2 -> d -> a))
+            -> (x1 -> x2 -> Dict String Value -> a)
+            -> x1
+            -> x2
+            -> Maybe (d -> Dict String Value -> Expectation)
+        go2 dictFnGetter coreDictFn arg1 arg2 =
+            dictFnGetter c
+                |> Maybe.map
+                    (\dictFn dict coreDict ->
+                        dictFn arg1 arg2 dict
+                            |> Expect.equal (coreDictFn arg1 arg2 coreDict)
+                    )
+
+        {- This would normally be go1, but we need to convert the result of
+           Dict.partition before putting it through Expect.equal.
+
+           This is not an issue with other operations since they return a type
+           that's not the dict itself. Eg. Dict.member returns a Bool.
+
+           Partition, on the other hand, for a Dict type `d`, returns `(d,d)`.
+           And so we get (d,d) from the tested Dict and (Dict String Value,
+           Dict String Value) from the core Dict. Those can't be equated.
+        -}
+        goPartition :
+            (String -> Value -> Bool)
+            -> Maybe (d -> Dict String Value -> Expectation)
+        goPartition arg1 =
+            Maybe.map2
+                (\partition toList dict coreDict ->
+                    partition arg1 dict
+                        |> Tuple.mapBoth toList toList
+                        |> Expect.equal
+                            (Dict.partition arg1 coreDict
+                                |> Tuple.mapBoth Dict.toList Dict.toList
+                            )
+                )
+                c.partition
+                c.toList
+
+        {- This would normally be go5, but we need to reorder the arguments
+           a bit as well: it's not as simple as x1 -> x2 -> d -> a.
+
+           In Dict.merge the init (a) comes as a last argument, which is
+           different to all the other tested functions where the dict comes as
+           a last argument.
+
+           In other words, the Dict.merge function is not pipelinable, and
+           this special helper deals with that.
+
+           Taking advantage of the fact that we know what function we'll use,
+           we can get rid of some of the arguments as well that we'd normally
+           have to provide to goN.
+        -}
+        goMerge :
+            (String -> Value -> List Int -> List Int)
+            -> (String -> Value -> Value -> List Int -> List Int)
+            -> (String -> Value -> List Int -> List Int)
+            -> List ( String, Value ) -- common representation to both dict implementations
+            -> List Int
+            -> Maybe (d -> Dict String Value -> Expectation)
+        goMerge xLeft xBoth xRight other init =
+            Maybe.map2
+                (\merge fromList dict coreDict ->
+                    merge xLeft xBoth xRight dict (fromList other) init
+                        |> Expect.equal (Dict.merge xLeft xBoth xRight coreDict (Dict.fromList other) init)
+                )
+                c.merge
+                c.fromList
+    in
+    case query of
+        Size ->
+            go0 .size Dict.size
+
+        IsEmpty ->
+            go0 .isEmpty Dict.isEmpty
+
+        Member k ->
+            go1 .member Dict.member k
+
+        Get k ->
+            go1 .get Dict.get k
+
+        FoldlCons init ->
+            go2 .foldl Dict.foldl (\_ v acc -> Value.unwrap v :: acc) init
+
+        FoldrCons init ->
+            go2 .foldr Dict.foldr (\_ v acc -> Value.unwrap v :: acc) init
+
+        PartitionEvenOdd ->
+            goPartition (\_ v -> modBy 2 (Value.unwrap v) == 0)
+
+        Merge other init ->
+            goMerge
+                (\_ v1 acc -> Value.unwrap v1 * 100 :: acc)
+                (\_ v1 v2 acc -> (Value.unwrap v1 + Value.unwrap v2) * 1000 :: acc)
+                (\_ v2 acc -> Value.unwrap v2 * 10000 :: acc)
+                other
+                init
+
+        Keys ->
+            go0 .keys Dict.keys
+
+        Values ->
+            go0 .values Dict.values
+
+        ToList ->
+            go0 .toList Dict.toList
