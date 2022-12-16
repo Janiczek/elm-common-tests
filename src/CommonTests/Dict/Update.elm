@@ -1,12 +1,11 @@
 module CommonTests.Dict.Update exposing (Update(..), fuzzer, toString)
 
-import CommonTests.Helpers exposing (keyFuzzer, kvFuzzer, kvToString, listToString)
-import CommonTests.Value as Value exposing (Value)
+import CommonTests.Helpers exposing (keyFuzzer, kvFuzzer, kvToString, listToString, valueFuzzer)
 import Fuzz exposing (Fuzzer)
 
 
 type Update
-    = Insert String Value
+    = Insert String Int
     | Remove String
     | UpdateNNJN String -- Nothing to Nothing, Just to Nothing
     | UpdateNNJJ String -- etc.
@@ -14,15 +13,15 @@ type Update
     | UpdateNJJJ String
     | Map
     | Filter
-    | Union (List ( String, Value ))
-    | Intersect (List ( String, Value ))
-    | Diff (List ( String, Value ))
+    | Union (List ( String, Int ))
+    | Intersect (List ( String, Int ))
+    | Diff (List ( String, Int ))
 
 
 fuzzer : Fuzzer Update
 fuzzer =
     Fuzz.oneOf
-        [ Fuzz.map2 Insert keyFuzzer Value.fuzzer
+        [ Fuzz.map2 Insert keyFuzzer valueFuzzer
         , Fuzz.map Remove keyFuzzer
         , Fuzz.map UpdateNNJN keyFuzzer
         , Fuzz.map UpdateNNJJ keyFuzzer
@@ -40,7 +39,7 @@ toString : Update -> String
 toString update =
     case update of
         Insert k v ->
-            "insert \"" ++ k ++ "\" " ++ Value.toString v
+            "insert \"" ++ k ++ "\" " ++ String.fromInt v
 
         Remove k ->
             "remove \"" ++ k ++ "\""

@@ -1,20 +1,20 @@
 module CommonTests.Helpers exposing
-    ( test, test2, test3
-    , withDefaultTest
-    , keyFuzzer, kvFuzzer
+    ( test, test2
+    , keyFuzzer, valueFuzzer, kvFuzzer
     , listToString, kvToString
+    , elmCoreDictToString
     )
 
 {-|
 
-@docs test, test2, test3
-@docs withDefaultTest
-@docs keyFuzzer, kvFuzzer
+@docs test, test2
+@docs keyFuzzer, valueFuzzer, kvFuzzer
 @docs listToString, kvToString
+@docs elmCoreDictToString
 
 -}
 
-import CommonTests.Value as Value exposing (Value)
+import Dict exposing (Dict)
 import Expect
 import Fuzz exposing (Fuzzer)
 import Test exposing (Test)
@@ -44,26 +44,25 @@ test2 label x1 x2 fn =
         |> withDefaultTest label
 
 
-test3 : String -> Maybe a -> Maybe b -> Maybe c -> (String -> a -> b -> c -> Test) -> Test
-test3 label x1 x2 x3 fn =
-    Maybe.map3 (fn label) x1 x2 x3
-        |> withDefaultTest label
-
-
 keyFuzzer : Fuzzer String
 keyFuzzer =
     Fuzz.asciiChar
         |> Fuzz.map String.fromChar
 
 
-kvFuzzer : Fuzzer ( String, Value )
+valueFuzzer : Fuzzer Int
+valueFuzzer =
+    Fuzz.int
+
+
+kvFuzzer : Fuzzer ( String, Int )
 kvFuzzer =
-    Fuzz.pair keyFuzzer Value.fuzzer
+    Fuzz.pair keyFuzzer valueFuzzer
 
 
-kvToString : ( String, Value ) -> String
+kvToString : ( String, Int ) -> String
 kvToString ( k, v ) =
-    "(\"" ++ k ++ "\", " ++ Value.toString v ++ ")"
+    "(\"" ++ k ++ "\", " ++ String.fromInt v ++ ")"
 
 
 listToString : (x -> String) -> List x -> String
@@ -71,3 +70,12 @@ listToString valueToString list =
     list
         |> List.map valueToString
         |> String.join ", "
+        |> (\s -> "[" ++ s ++ "]")
+
+
+elmCoreDictToString : Dict String Int -> String
+elmCoreDictToString dict =
+    "Dict.fromList "
+        ++ listToString
+            (\( k, v ) -> "(\"" ++ k ++ "\", " ++ String.fromInt v ++ ")")
+            (Dict.toList dict)

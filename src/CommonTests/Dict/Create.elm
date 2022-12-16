@@ -1,7 +1,5 @@
 module CommonTests.Dict.Create exposing (Create(..), all, label)
 
-import Fuzz exposing (Fuzzer)
-
 
 type Create
     = Empty

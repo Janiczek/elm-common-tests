@@ -17,7 +17,6 @@ suite =
     CommonTests.isDict
         -- Debug.toString
         { dictToString = Debug.toString
-        , elmCoreDictToString = Debug.toString
 
         -- Creation
         , empty = Just <| OpaqueDict.empty identity

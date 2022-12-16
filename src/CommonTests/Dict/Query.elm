@@ -1,7 +1,6 @@
-module CommonTests.Dict.Query exposing (Query(..), fuzzer, label)
+module CommonTests.Dict.Query exposing (Query(..), fuzzer)
 
-import CommonTests.Helpers exposing (keyFuzzer, kvFuzzer, kvToString, listToString)
-import CommonTests.Value as Value exposing (Value)
+import CommonTests.Helpers exposing (keyFuzzer, kvFuzzer)
 import Fuzz exposing (Fuzzer)
 
 
@@ -13,7 +12,7 @@ type Query
     | FoldlCons (List Int)
     | FoldrCons (List Int)
     | PartitionEvenOdd
-    | Merge (List ( String, Value )) (List Int)
+    | Merge (List ( String, Int )) (List Int)
     | Keys
     | Values
     | ToList
@@ -34,43 +33,3 @@ fuzzer =
         , Fuzz.constant Values
         , Fuzz.constant ToList
         ]
-
-
-label : Query -> String
-label query =
-    case query of
-        Size ->
-            "size"
-
-        IsEmpty ->
-            "isEmpty"
-
-        Member k ->
-            "member \"" ++ k ++ "\""
-
-        Get k ->
-            "get \"" ++ k ++ "\""
-
-        FoldlCons init ->
-            "foldl consIntValue " ++ listToString String.fromInt init
-
-        FoldrCons init ->
-            "foldr consIntValue " ++ listToString String.fromInt init
-
-        PartitionEvenOdd ->
-            "partition isValueEven"
-
-        Merge other init ->
-            "merge onLeft onBoth onRight this "
-                ++ listToString kvToString other
-                ++ " "
-                ++ listToString String.fromInt init
-
-        Keys ->
-            "keys"
-
-        Values ->
-            "values"
-
-        ToList ->
-            "toList"

@@ -8,9 +8,7 @@ import Test exposing (Test)
 suite : Test
 suite =
     CommonTests.isDict
-        -- Debug.toString
         { dictToString = Debug.toString
-        , elmCoreDictToString = Debug.toString
 
         -- Creation
         , empty = Just <| OpaqueDict.empty identity

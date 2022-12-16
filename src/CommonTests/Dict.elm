@@ -4,12 +4,11 @@ module CommonTests.Dict exposing
     , isDict
     )
 
-import ArchitectureTest exposing (TestedApp, TestedModel, TestedUpdate)
+import ArchitectureTest exposing (TestedApp)
 import CommonTests.Dict.Create as Create exposing (Create(..))
 import CommonTests.Dict.Query as Query exposing (Query(..))
 import CommonTests.Dict.Update as Update exposing (Update(..))
-import CommonTests.Helpers exposing (kvFuzzer, test, test2, test3)
-import CommonTests.Value as Value exposing (Value(..))
+import CommonTests.Helpers exposing (elmCoreDictToString, kvFuzzer, test, test2)
 import Dict exposing (Dict)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
@@ -17,22 +16,21 @@ import Maybe.Extra as Maybe
 import Test exposing (Test)
 
 
-type alias DictAPI d cd k v r =
+type alias DictAPI d =
     -- Debug.toString
     { dictToString : d -> String
-    , elmCoreDictToString : cd -> String
 
     -- Creation
     , empty : Maybe d
-    , singleton : Maybe (k -> v -> d)
-    , fromList : Maybe (List ( k, v ) -> d)
+    , singleton : Maybe (String -> Int -> d)
+    , fromList : Maybe (List ( String, Int ) -> d)
 
     -- Updating
-    , insert : Maybe (k -> v -> d -> d)
-    , remove : Maybe (k -> d -> d)
-    , update : Maybe (k -> (Maybe v -> Maybe v) -> d -> d)
-    , map : Maybe ((k -> v -> v) -> d -> d) -- TODO not as general as we could be
-    , filter : Maybe ((k -> v -> Bool) -> d -> d)
+    , insert : Maybe (String -> Int -> d -> d)
+    , remove : Maybe (String -> d -> d)
+    , update : Maybe (String -> (Maybe Int -> Maybe Int) -> d -> d)
+    , map : Maybe ((String -> Int -> Int) -> d -> d) -- TODO not as general as we could be
+    , filter : Maybe ((String -> Int -> Bool) -> d -> d)
     , union : Maybe (d -> d -> d)
     , intersect : Maybe (d -> d -> d)
     , diff : Maybe (d -> d -> d) -- TODO not as general as we could be
@@ -40,24 +38,24 @@ type alias DictAPI d cd k v r =
     -- Querying
     , size : Maybe (d -> Int)
     , isEmpty : Maybe (d -> Bool)
-    , member : Maybe (k -> d -> Bool)
-    , get : Maybe (k -> d -> Maybe v)
-    , toList : Maybe (d -> List ( k, v ))
-    , foldl : Maybe ((k -> v -> r -> r) -> r -> d -> r)
-    , foldr : Maybe ((k -> v -> r -> r) -> r -> d -> r)
-    , partition : Maybe ((k -> v -> Bool) -> d -> ( d, d ))
-    , keys : Maybe (d -> List k)
-    , values : Maybe (d -> List v)
+    , member : Maybe (String -> d -> Bool)
+    , get : Maybe (String -> d -> Maybe Int)
+    , toList : Maybe (d -> List ( String, Int ))
+    , foldl : Maybe ((String -> Int -> List Int -> List Int) -> List Int -> d -> List Int)
+    , foldr : Maybe ((String -> Int -> List Int -> List Int) -> List Int -> d -> List Int)
+    , partition : Maybe ((String -> Int -> Bool) -> d -> ( d, d ))
+    , keys : Maybe (d -> List String)
+    , values : Maybe (d -> List Int)
     , merge :
         -- TODO not as general as we could be
         Maybe
-            ((k -> v -> r -> r)
-             -> (k -> v -> v -> r -> r)
-             -> (k -> v -> r -> r)
+            ((String -> Int -> List Int -> List Int)
+             -> (String -> Int -> Int -> List Int -> List Int)
+             -> (String -> Int -> List Int -> List Int)
              -> d
              -> d
-             -> r
-             -> r
+             -> List Int
+             -> List Int
             )
     }
 
@@ -66,12 +64,9 @@ type alias DictAPI d cd k v r =
 -- Dict API
 
 
-elmCoreDict :
-    (Dict comparable v -> String)
-    -> DictAPI (Dict comparable v) (Dict comparable v) comparable v r
-elmCoreDict toString =
-    { dictToString = toString
-    , elmCoreDictToString = toString
+elmCoreDict : DictAPI (Dict String Int)
+elmCoreDict =
+    { dictToString = elmCoreDictToString
     , empty = Just Dict.empty
     , singleton = Just Dict.singleton
     , insert = Just Dict.insert
@@ -101,7 +96,7 @@ elmCoreDict toString =
 -- TESTS
 
 
-isDict : DictAPI d (Dict String Value) String Value (List Int) -> Test
+isDict : DictAPI d -> Test
 isDict c =
     Test.describe "Conformance to elm/core Dict"
         [ creationConformance c
@@ -113,33 +108,30 @@ isDict c =
         ]
 
 
-creationConformance : DictAPI d (Dict String Value) String Value r -> Test
+creationConformance : DictAPI d -> Test
 creationConformance c =
     Create.all
         |> List.map (behavesLikeDictWhenCreatedVia c)
         |> Test.describe "Creation"
 
 
-queryingConformance : DictAPI d (Dict String Value) String Value (List Int) -> Test
+queryingConformance : DictAPI d -> Test
 queryingConformance c =
-    test2 "Querying"
-        c.toList
-        (initFuzzerUsingAll c)
-    <|
-        \label toList initFuzzer_ ->
+    test "Querying" (initFuzzerUsingAll c) <|
+        \label initFuzzer_ ->
             let
                 updateDict : Update -> d -> Maybe d
                 updateDict u dict =
                     updateWithApi c u dict
 
-                update : Update -> ( d, Dict String Value ) -> ( d, Dict String Value )
+                update : Update -> ( d, Dict String Int ) -> ( d, Dict String Int )
                 update u ( d, cd ) =
                     Maybe.map2 (\d2 cd2 -> ( d2, cd2 ))
                         (updateDict u d)
                         (updateCoreDict c u cd)
                         |> Maybe.withDefault ( d, cd )
 
-                testedApp : TestedApp ( d, Dict String Value ) Update
+                testedApp : TestedApp ( d, Dict String Int ) Update
                 testedApp =
                     { model = ArchitectureTest.FuzzedModel initFuzzer_
                     , update = ArchitectureTest.UpdateWithoutCmds update
@@ -148,7 +140,7 @@ queryingConformance c =
                     , modelToString = dictAndCoreDictToString c
                     }
 
-                modelFuzzer : Fuzzer ( d, Dict String Value )
+                modelFuzzer : Fuzzer ( d, Dict String Int )
                 modelFuzzer =
                     ArchitectureTest.modelFuzzer testedApp
             in
@@ -171,10 +163,7 @@ queryingConformance c =
 -- Tests using random sequences of operations
 
 
-behavesLikeDictWhenCreatedVia :
-    DictAPI d (Dict String Value) String Value r
-    -> Create
-    -> Test
+behavesLikeDictWhenCreatedVia : DictAPI d -> Create -> Test
 behavesLikeDictWhenCreatedVia c create =
     test2 (Create.label create)
         c.toList
@@ -186,14 +175,14 @@ behavesLikeDictWhenCreatedVia c create =
                 updateDict u dict =
                     updateWithApi c u dict
 
-                update : Update -> ( d, Dict String Value ) -> ( d, Dict String Value )
+                update : Update -> ( d, Dict String Int ) -> ( d, Dict String Int )
                 update u ( d, cd ) =
                     Maybe.map2 (\d2 cd2 -> ( d2, cd2 ))
                         (updateDict u d)
                         (updateCoreDict c u cd)
                         |> Maybe.withDefault ( d, cd )
 
-                testedApp : TestedApp ( d, Dict String Value ) Update
+                testedApp : TestedApp ( d, Dict String Int ) Update
                 testedApp =
                     { model = ArchitectureTest.FuzzedModel initFuzzer_
                     , update = ArchitectureTest.UpdateWithoutCmds update
@@ -208,11 +197,11 @@ behavesLikeDictWhenCreatedVia c create =
                         |> Expect.equalLists (Dict.toList coreDict)
 
 
-dictAndCoreDictToString : DictAPI d cd k v r -> ( d, cd ) -> String
+dictAndCoreDictToString : DictAPI d -> ( d, Dict String Int ) -> String
 dictAndCoreDictToString c ( dict, coreDict ) =
     String.join "\n"
         [ "Tested Dict:   " ++ c.dictToString dict
-        , "elm/core Dict: " ++ c.elmCoreDictToString coreDict
+        , "    elm/core Dict: " ++ elmCoreDictToString coreDict
         ]
 
 
@@ -220,17 +209,14 @@ dictAndCoreDictToString c ( dict, coreDict ) =
 -- CREATE
 
 
-initFuzzerUsingAll : DictAPI d cd String Value r -> Maybe (Fuzzer ( d, Dict String Value ))
+initFuzzerUsingAll : DictAPI d -> Maybe (Fuzzer ( d, Dict String Int ))
 initFuzzerUsingAll c =
     Create.all
         |> Maybe.traverse (initFuzzer c)
         |> Maybe.map Fuzz.oneOf
 
 
-initFuzzer :
-    DictAPI d cd String Value r
-    -> Create
-    -> Maybe (Fuzzer ( d, Dict String Value ))
+initFuzzer : DictAPI d -> Create -> Maybe (Fuzzer ( d, Dict String Int ))
 initFuzzer c create =
     case create of
         Empty ->
@@ -269,7 +255,7 @@ initFuzzer c create =
 -- UPDATE
 
 
-updateWithApi : DictAPI d cd String Value r -> Update -> d -> Maybe d
+updateWithApi : DictAPI d -> Update -> d -> Maybe d
 updateWithApi c update dict =
     case update of
         Insert k v ->
@@ -291,10 +277,10 @@ updateWithApi c update dict =
             c.update |> Maybe.map (\update_ -> update_ k nothingToJustJustToJust dict)
 
         Map ->
-            c.map |> Maybe.map (\map -> map (\_ v -> Value.map (\n -> n + 1) v) dict)
+            c.map |> Maybe.map (\map -> map (\_ v -> v + 1) dict)
 
         Filter ->
-            c.filter |> Maybe.map (\filter -> filter (\_ v -> modBy 2 (Value.unwrap v) == 0) dict)
+            c.filter |> Maybe.map (\filter -> filter (\_ v -> modBy 2 v == 0) dict)
 
         Union other ->
             Maybe.map2 (\union fromList -> union dict (fromList other))
@@ -312,62 +298,57 @@ updateWithApi c update dict =
                 c.fromList
 
 
-nothingToNothingJustToNothing : Maybe Value -> Maybe Value
-nothingToNothingJustToNothing mv =
-    case mv of
-        Nothing ->
-            Nothing
-
-        Just _ ->
-            Nothing
+nothingToNothingJustToNothing : Maybe Int -> Maybe Int
+nothingToNothingJustToNothing _ =
+    Nothing
 
 
-nothingToNothingJustToJust : Maybe Value -> Maybe Value
+nothingToNothingJustToJust : Maybe Int -> Maybe Int
 nothingToNothingJustToJust mv =
     case mv of
         Nothing ->
             Nothing
 
         Just v ->
-            Just (Value.map (\n -> n + 1) v)
+            Just (v + 1)
 
 
-nothingToJustJustToNothing : Maybe Value -> Maybe Value
+nothingToJustJustToNothing : Maybe Int -> Maybe Int
 nothingToJustJustToNothing mv =
     case mv of
         Nothing ->
-            Just (Value 1)
+            Just 1
 
         Just _ ->
             Nothing
 
 
-nothingToJustJustToJust : Maybe Value -> Maybe Value
+nothingToJustJustToJust : Maybe Int -> Maybe Int
 nothingToJustJustToJust mv =
     case mv of
         Nothing ->
-            Just (Value 1)
+            Just 1
 
         Just v ->
-            Just (Value.map (\n -> n + 1) v)
+            Just (v + 1)
 
 
-updateCoreDict : DictAPI d (Dict String Value) String Value r -> Update -> Dict String Value -> Maybe (Dict String Value)
+updateCoreDict : DictAPI d -> Update -> Dict String Int -> Maybe (Dict String Int)
 updateCoreDict c update dict =
-    updateWithApi (elmCoreDict c.elmCoreDictToString) update dict
+    updateWithApi elmCoreDict update dict
 
 
 
 -- QUERY
 
 
-queryToExpectation : DictAPI d (Dict String Value) String Value (List Int) -> Query -> Maybe (d -> Dict String Value -> Expectation)
+queryToExpectation : DictAPI d -> Query -> Maybe (d -> Dict String Int -> Expectation)
 queryToExpectation c query =
     let
         go0 :
-            (DictAPI d (Dict String Value) String Value (List Int) -> Maybe (d -> a))
-            -> (Dict String Value -> a)
-            -> Maybe (d -> Dict String Value -> Expectation)
+            (DictAPI d -> Maybe (d -> a))
+            -> (Dict String Int -> a)
+            -> Maybe (d -> Dict String Int -> Expectation)
         go0 dictFnGetter coreDictFn =
             dictFnGetter c
                 |> Maybe.map
@@ -377,10 +358,10 @@ queryToExpectation c query =
                     )
 
         go1 :
-            (DictAPI d (Dict String Value) String Value (List Int) -> Maybe (x1 -> d -> a))
-            -> (x1 -> Dict String Value -> a)
+            (DictAPI d -> Maybe (x1 -> d -> a))
+            -> (x1 -> Dict String Int -> a)
             -> x1
-            -> Maybe (d -> Dict String Value -> Expectation)
+            -> Maybe (d -> Dict String Int -> Expectation)
         go1 dictFnGetter coreDictFn arg1 =
             dictFnGetter c
                 |> Maybe.map
@@ -390,11 +371,11 @@ queryToExpectation c query =
                     )
 
         go2 :
-            (DictAPI d (Dict String Value) String Value (List Int) -> Maybe (x1 -> x2 -> d -> a))
-            -> (x1 -> x2 -> Dict String Value -> a)
+            (DictAPI d -> Maybe (x1 -> x2 -> d -> a))
+            -> (x1 -> x2 -> Dict String Int -> a)
             -> x1
             -> x2
-            -> Maybe (d -> Dict String Value -> Expectation)
+            -> Maybe (d -> Dict String Int -> Expectation)
         go2 dictFnGetter coreDictFn arg1 arg2 =
             dictFnGetter c
                 |> Maybe.map
@@ -410,12 +391,12 @@ queryToExpectation c query =
            that's not the dict itself. Eg. Dict.member returns a Bool.
 
            Partition, on the other hand, for a Dict type `d`, returns `(d,d)`.
-           And so we get (d,d) from the tested Dict and (Dict String Value,
-           Dict String Value) from the core Dict. Those can't be equated.
+           And so we get (d,d) from the tested Dict and (Dict String Int,
+           Dict String Int) from the core Dict. Those can't be equated.
         -}
         goPartition :
-            (String -> Value -> Bool)
-            -> Maybe (d -> Dict String Value -> Expectation)
+            (String -> Int -> Bool)
+            -> Maybe (d -> Dict String Int -> Expectation)
         goPartition arg1 =
             Maybe.map2
                 (\partition toList dict coreDict ->
@@ -444,12 +425,12 @@ queryToExpectation c query =
            have to provide to goN.
         -}
         goMerge :
-            (String -> Value -> List Int -> List Int)
-            -> (String -> Value -> Value -> List Int -> List Int)
-            -> (String -> Value -> List Int -> List Int)
-            -> List ( String, Value ) -- common representation to both dict implementations
+            (String -> Int -> List Int -> List Int)
+            -> (String -> Int -> Int -> List Int -> List Int)
+            -> (String -> Int -> List Int -> List Int)
+            -> List ( String, Int ) -- common representation to both dict implementations
             -> List Int
-            -> Maybe (d -> Dict String Value -> Expectation)
+            -> Maybe (d -> Dict String Int -> Expectation)
         goMerge xLeft xBoth xRight other init =
             Maybe.map2
                 (\merge fromList dict coreDict ->
@@ -473,19 +454,19 @@ queryToExpectation c query =
             go1 .get Dict.get k
 
         FoldlCons init ->
-            go2 .foldl Dict.foldl (\_ v acc -> Value.unwrap v :: acc) init
+            go2 .foldl Dict.foldl (\_ v acc -> v :: acc) init
 
         FoldrCons init ->
-            go2 .foldr Dict.foldr (\_ v acc -> Value.unwrap v :: acc) init
+            go2 .foldr Dict.foldr (\_ v acc -> v :: acc) init
 
         PartitionEvenOdd ->
-            goPartition (\_ v -> modBy 2 (Value.unwrap v) == 0)
+            goPartition (\_ v -> modBy 2 v == 0)
 
         Merge other init ->
             goMerge
-                (\_ v1 acc -> Value.unwrap v1 * 100 :: acc)
-                (\_ v1 v2 acc -> (Value.unwrap v1 + Value.unwrap v2) * 1000 :: acc)
-                (\_ v2 acc -> Value.unwrap v2 * 10000 :: acc)
+                (\_ v1 acc -> v1 * 100 :: acc)
+                (\_ v1 v2 acc -> (v1 + v2) * 1000 :: acc)
+                (\_ v2 acc -> v2 * 10000 :: acc)
                 other
                 init
 
