@@ -32,6 +32,7 @@ fuzzer =
 
 toString : Update -> String
 toString update =
+    -- TODO make these look more like function calls
     case update of
         Insert k v ->
             "Insert \"" ++ k ++ "\" (" ++ Value.toString v ++ ")"
