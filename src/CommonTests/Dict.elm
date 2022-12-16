@@ -103,56 +103,13 @@ elmCoreDict toString =
 
 isDict : DictAPI d (Dict String Value) String Value (List Int) -> Test
 isDict c =
-    Test.describe "Dict behaviour"
-        [ Test.describe "Laws of the Dict API"
-            [ emptyLaws c
-            , Test.todo "rest of functions"
-            ]
-        , Test.describe "Conformance to elm/core Dict"
-            [ creationConformance c
-            , queryingConformance c
+    Test.describe "Conformance to elm/core Dict"
+        [ creationConformance c
+        , queryingConformance c
 
-            {- Updating conformance is already tested thanks to us using
-               `Update.fuzzer` in all the ArchitectureTest invocations.
-            -}
-            ]
-        ]
-
-
-emptyLaws : DictAPI d cd String Value r -> Test
-emptyLaws c =
-    Test.describe "empty"
-        [ test2 "isEmpty empty == True" c.empty c.isEmpty <|
-            \label empty isEmpty ->
-                Test.test label <|
-                    \() ->
-                        isEmpty empty
-                            |> Expect.equal True
-        , test3 "isEmpty (insert k v empty) == False" c.empty c.isEmpty c.insert <|
-            \label empty isEmpty insert ->
-                Test.fuzz kvFuzzer label <|
-                    \( k, v ) ->
-                        isEmpty (insert k v empty)
-                            |> Expect.equal False
-        , test2 "toList empty == []" c.empty c.toList <|
-            \label empty toList ->
-                Test.test label <|
-                    \() ->
-                        toList empty
-                            |> Expect.equalLists []
-        , behavesTheSameWhenCreatedVia c
-            Fuzz.unit
-            (c.empty |> Maybe.map (\empty () -> empty))
-            (c.fromList |> Maybe.map (\fromList () -> fromList []))
-            "empty behaves exactly like fromList []"
-        , behavesTheSameWhenCreatedVia c
-            kvFuzzer
-            (Maybe.map2 (\insert empty ( k, v ) -> insert k v empty)
-                c.insert
-                c.empty
-            )
-            (c.singleton |> Maybe.map (\singleton ( k, v ) -> singleton k v))
-            "empty>>insert behaves exactly like singleton"
+        {- Updating conformance is already tested thanks to us using
+           `Update.fuzzer` in all the ArchitectureTest invocations.
+        -}
         ]
 
 
@@ -251,70 +208,11 @@ behavesLikeDictWhenCreatedVia c create =
                         |> Expect.equalLists (Dict.toList coreDict)
 
 
-behavesTheSameWhenCreatedVia :
-    DictAPI d cd String Value r
-    -> Fuzzer a
-    -> Maybe (a -> d)
-    -> Maybe (a -> d)
-    -> String
-    -> Test
-behavesTheSameWhenCreatedVia c initDataFuzzer toFirst toSecond label =
-    test3 label
-        c.toList
-        toFirst
-        toSecond
-    <|
-        \label_ toList toFirst_ toSecond_ ->
-            let
-                initFuzzer_ : Fuzzer ( d, d )
-                initFuzzer_ =
-                    initDataFuzzer
-                        |> Fuzz.map
-                            (\initData ->
-                                ( toFirst_ initData
-                                , toSecond_ initData
-                                )
-                            )
-
-                updateSingle : Update -> d -> Maybe d
-                updateSingle u dict =
-                    updateWithApi c u dict
-
-                update : Update -> ( d, d ) -> ( d, d )
-                update u ( first, second ) =
-                    Maybe.map2 Tuple.pair
-                        (updateSingle u first)
-                        (updateSingle u second)
-                        |> Maybe.withDefault ( first, second )
-
-                testedApp : TestedApp ( d, d ) Update
-                testedApp =
-                    { model = ArchitectureTest.FuzzedModel initFuzzer_
-                    , update = ArchitectureTest.UpdateWithoutCmds update
-                    , msgFuzzer = Update.fuzzer
-                    , msgToString = Update.toString
-                    , modelToString = twoDictsToString c
-                    }
-            in
-            ArchitectureTest.invariantTest label_ testedApp <|
-                \_ _ ( firstDict, secondDict ) ->
-                    toList firstDict
-                        |> Expect.equalLists (toList secondDict)
-
-
 dictAndCoreDictToString : DictAPI d cd k v r -> ( d, cd ) -> String
 dictAndCoreDictToString c ( dict, coreDict ) =
     String.join "\n"
         [ "Tested Dict:   " ++ c.dictToString dict
         , "elm/core Dict: " ++ c.elmCoreDictToString coreDict
-        ]
-
-
-twoDictsToString : DictAPI d cd k v r -> ( d, d ) -> String
-twoDictsToString c ( first, second ) =
-    String.join "\n"
-        [ "First:  " ++ c.dictToString first
-        , "Second: " ++ c.dictToString second
         ]
 
 
