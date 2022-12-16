@@ -201,7 +201,7 @@ dictAndCoreDictToString : DictAPI d -> ( d, Dict String Int ) -> String
 dictAndCoreDictToString c ( dict, coreDict ) =
     String.join "\n"
         [ "Tested Dict:   " ++ c.dictToString dict
-        , "    elm/core Dict: " ++ elmCoreDictToString coreDict
+        , "elm/core Dict: " ++ elmCoreDictToString coreDict
         ]
 
 
