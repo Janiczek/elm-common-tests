@@ -83,3 +83,5 @@ Given (({ dict = Dict.fromList [], keyToString = <function> },Dict.fromList []),
 ```
 
 This can be interpreted as: "I've started with an empty Dict, tried to run `Dict.update " " nothingToJustJustToNothing` on it, and got differing results between your Dict and the elm/core Dict: yours stayed empty while the core one has one element."
+
+For more explanation take a look at the [`isDict` function docs](CommonTests#isDict).
