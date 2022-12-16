@@ -47,3 +47,39 @@ suite =
         , merge = Just OpaqueDict.merge
         }
 ```
+
+Whenever your functions don't behave like the ones from elm/core Dict, you'll get failed tests like:
+
+```
+↓ Example
+↓ Conformance to elm/core Dict
+↓ Creation
+✗ empty
+
+Given (({ dict = Dict.fromList [], keyToString = <function> },Dict.fromList []),[UpdateNJJN " "])
+
+    Starting model:
+
+        Tested Dict:   { dict = Dict.fromList [], keyToString = <function> }
+        elm/core Dict: Dict.fromList []
+
+    Msgs applied to it (failed a contract):
+
+        [ update " " nothingToJustJustToNothing
+        ]
+
+    Resulting model:
+
+        Tested Dict:   { dict = Dict.fromList [], keyToString = <function> }
+        elm/core Dict: Dict.fromList [(" ", 1)]
+
+    Failure:
+
+
+        ╵
+        │ Expect.equalLists was shorter than
+        ╷
+        (" ",1)
+```
+
+This can be interpreted as: "I've started with an empty Dict, tried to run `Dict.update " " nothingToJustJustToNothing` on it, and got differing results between your Dict and the elm/core Dict: yours stayed empty while the core one has one element."
