@@ -1,40 +1,35 @@
 module Example exposing (..)
 
+-- import {- escherlies/elm-ix-dict -} IxDict -- We can't use this one because it doesn't allow surjection (two keys k1,k2 for the same value v).
+-- import {- jjant/elm-dict -} AllDict -- We can't use this one because it doesn't allow converting the dict back into a list, and the testing library unfortunately makes heavy use of toList.
+
+import {- owanturist/elm-avl-dict -} AVL.Dict
+import {- edkelly303/elm-any-type-collections -} Any.Dict
+import {- pzp1997/assoc-list -} AssocList
+import {- timo-weike/generic-collections -} AutoDict
 import CommonTests
-import OpaqueDict
+import {- turboMaCk/any-dict -} Dict.Any
+import {- edkv/elm-generic-dict -} GenericDict
+import {- timo-weike/generic-collections -} ManualDict
+import {- matzko/elm-opaque-dict -} OpaqueDict
 import Test exposing (Test)
 
 
 suite : Test
 suite =
-    CommonTests.isDict
-        { dictToString = Debug.toString
-
-        -- Creation
-        , empty = Just <| OpaqueDict.empty identity
-        , singleton = Just <| OpaqueDict.singleton identity
-        , fromList = Just <| OpaqueDict.fromList identity
-
-        -- Updating
-        , insert = Just OpaqueDict.insert
-        , update = Just OpaqueDict.update
-        , remove = Just OpaqueDict.remove
-        , map = Just OpaqueDict.map
-        , filter = Just OpaqueDict.filter
-        , union = Just OpaqueDict.union
-        , intersect = Just OpaqueDict.intersect
-        , diff = Just OpaqueDict.diff
-
-        -- Querying
-        , size = Just OpaqueDict.size
-        , isEmpty = Just OpaqueDict.isEmpty
-        , member = Just OpaqueDict.member
-        , get = Just OpaqueDict.get
-        , toList = Just OpaqueDict.toList
-        , foldl = Just OpaqueDict.foldl
-        , foldr = Just OpaqueDict.foldr
-        , partition = Just OpaqueDict.partition
-        , keys = Just OpaqueDict.keys
-        , values = Just OpaqueDict.values
-        , merge = Just OpaqueDict.merge
-        }
+    Test.concat
+        [ Test.describe "matzko/elm-opaque-dict" [ CommonTests.isDict { dictToString = Debug.toString, empty = Just <| OpaqueDict.empty identity, singleton = Just <| OpaqueDict.singleton identity, fromList = Just <| OpaqueDict.fromList identity, insert = Just OpaqueDict.insert, update = Just OpaqueDict.update, remove = Just OpaqueDict.remove, map = Just OpaqueDict.map, filter = Just OpaqueDict.filter, union = Just OpaqueDict.union, intersect = Just OpaqueDict.intersect, diff = Just OpaqueDict.diff, size = Just OpaqueDict.size, isEmpty = Just OpaqueDict.isEmpty, member = Just OpaqueDict.member, get = Just OpaqueDict.get, toList = Just OpaqueDict.toList, foldl = Just OpaqueDict.foldl, foldr = Just OpaqueDict.foldr, partition = Just OpaqueDict.partition, keys = Just OpaqueDict.keys, values = Just OpaqueDict.values, merge = Just OpaqueDict.merge } ]
+        , Test.describe "edkv/elm-generic-dict " [ CommonTests.isDict { dictToString = Debug.toString, empty = Just GenericDict.empty, singleton = Just <| GenericDict.singleton identity, fromList = Just <| GenericDict.fromList identity, insert = Just <| GenericDict.insert identity, update = Just <| GenericDict.update identity, remove = Just <| GenericDict.remove identity, map = Just GenericDict.map, filter = Just GenericDict.filter, union = Just GenericDict.union, intersect = Just GenericDict.intersect, diff = Just GenericDict.diff, size = Just GenericDict.size, isEmpty = Just GenericDict.isEmpty, member = Just <| GenericDict.member identity, get = Just <| GenericDict.get identity, toList = Just GenericDict.toList, foldl = Just GenericDict.fold, foldr = Nothing, partition = Just GenericDict.partition, keys = Just GenericDict.keys, values = Just GenericDict.values, merge = Just GenericDict.merge } ]
+        , Test.describe "owanturist/elm-avl-dict" [ CommonTests.isDict { dictToString = Debug.toString, empty = Just AVL.Dict.empty, singleton = Just AVL.Dict.singleton, fromList = Just AVL.Dict.fromList, insert = Just AVL.Dict.insert, update = Just AVL.Dict.update, remove = Just AVL.Dict.remove, map = Just AVL.Dict.map, filter = Just AVL.Dict.filter, union = Just AVL.Dict.union, intersect = Just AVL.Dict.intersect, diff = Just AVL.Dict.diff, size = Just AVL.Dict.size, isEmpty = Just AVL.Dict.isEmpty, member = Just AVL.Dict.member, get = Just AVL.Dict.get, toList = Just AVL.Dict.toList, foldl = Just AVL.Dict.foldl, foldr = Just AVL.Dict.foldr, partition = Just AVL.Dict.partition, keys = Just AVL.Dict.keys, values = Just AVL.Dict.values, merge = Just AVL.Dict.merge } ]
+        , Test.describe "pzp1997/assoc-list" [ CommonTests.isDict { dictToString = Debug.toString, empty = Just AssocList.empty, singleton = Just AssocList.singleton, fromList = Just AssocList.fromList, insert = Just AssocList.insert, update = Just AssocList.update, remove = Just AssocList.remove, map = Just AssocList.map, filter = Just AssocList.filter, union = Just AssocList.union, intersect = Just AssocList.intersect, diff = Just AssocList.diff, size = Just AssocList.size, isEmpty = Just AssocList.isEmpty, member = Just AssocList.member, get = Just AssocList.get, toList = Just AssocList.toList, foldl = Just AssocList.foldl, foldr = Just AssocList.foldr, partition = Just AssocList.partition, keys = Just AssocList.keys, values = Just AssocList.values, merge = Just AssocList.merge } ]
+        , Test.describe "timo-weike/generic-collections - ManualDict" [ CommonTests.isDict { dictToString = Debug.toString, empty = Just ManualDict.empty, singleton = Just <| ManualDict.singleton identity, fromList = Just <| ManualDict.fromList identity, insert = Just <| ManualDict.insert identity, update = Just <| ManualDict.update identity, remove = Just <| ManualDict.remove identity, map = Just ManualDict.map, filter = Just ManualDict.filter, union = Just <| ManualDict.union identity, intersect = Just <| ManualDict.intersect identity, diff = Just <| ManualDict.diff identity, size = Just ManualDict.size, isEmpty = Just ManualDict.isEmpty, member = Just <| ManualDict.member identity, get = Just <| ManualDict.get identity, toList = Just ManualDict.toList, foldl = Just ManualDict.foldl, foldr = Just ManualDict.foldr, partition = Just ManualDict.partition, keys = Just ManualDict.keys, values = Just ManualDict.values, merge = Just <| ManualDict.merge compare } ]
+        , Test.describe "timo-weike/generic-collections - AutoDict" [ CommonTests.isDict { dictToString = Debug.toString, empty = Just <| AutoDict.empty identity, singleton = Just <| AutoDict.singleton identity, fromList = Just <| AutoDict.fromList identity, insert = Just AutoDict.insert, update = Just AutoDict.update, remove = Just AutoDict.remove, map = Just AutoDict.map, filter = Just AutoDict.filter, union = Just AutoDict.union, intersect = Just AutoDict.intersect, diff = Just AutoDict.diff, size = Just AutoDict.size, isEmpty = Just AutoDict.isEmpty, member = Just AutoDict.member, get = Just AutoDict.get, toList = Just AutoDict.toList, foldl = Just AutoDict.foldl, foldr = Just AutoDict.foldr, partition = Just AutoDict.partition, keys = Just AutoDict.keys, values = Just AutoDict.values, merge = Just <| AutoDict.merge compare } ]
+        , Test.describe "turboMaCk/any-dict" [ CommonTests.isDict { dictToString = Debug.toString, empty = Just <| Dict.Any.empty identity, singleton = Just <| \k v -> Dict.Any.singleton k v identity, fromList = Just <| Dict.Any.fromList identity, insert = Just Dict.Any.insert, update = Just Dict.Any.update, remove = Just Dict.Any.remove, map = Just Dict.Any.map, filter = Just Dict.Any.filter, union = Just Dict.Any.union, intersect = Just Dict.Any.intersect, diff = Just Dict.Any.diff, size = Just Dict.Any.size, isEmpty = Just Dict.Any.isEmpty, member = Just Dict.Any.member, get = Just Dict.Any.get, toList = Just Dict.Any.toList, foldl = Just Dict.Any.foldl, foldr = Just Dict.Any.foldr, partition = Just Dict.Any.partition, keys = Just Dict.Any.keys, values = Just Dict.Any.values, merge = Just Dict.Any.merge } ]
+        , Test.describe "edkelly303/elm-any-type-collections"
+            [ let
+                interface =
+                    Any.Dict.makeInterface { toComparable = identity, fromComparable = identity }
+              in
+              CommonTests.isDict { dictToString = Debug.toString, empty = Just interface.empty, singleton = Just interface.singleton, fromList = Just interface.fromList, insert = Just interface.insert, update = Just interface.update, remove = Just interface.remove, map = Just interface.map, filter = Just interface.filter, union = Just interface.union, intersect = Just interface.intersect, diff = Just interface.diff, size = Just interface.size, isEmpty = Just interface.isEmpty, member = Just interface.member, get = Just interface.get, toList = Just interface.toList, foldl = Just interface.foldl, foldr = Just interface.foldr, partition = Just interface.partition, keys = Just interface.keys, values = Just interface.values, merge = Just interface.merge }
+            ]
+        ]
