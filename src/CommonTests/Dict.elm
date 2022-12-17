@@ -1,6 +1,5 @@
 module CommonTests.Dict exposing
     ( DictAPI
-    , elmCoreDict
     , isDict
     )
 
@@ -16,6 +15,44 @@ import Maybe.Extra as Maybe
 import Test exposing (Test)
 
 
+{-| Provide your functions. Typically something like the below example.
+
+Note: you can opt out of testing some functions with `Nothing`, but beware: not
+providing eg. `toList` will result in almost no tests being actually ran.
+
+    -- Debug.toString
+    { dictToString = Debug.toString
+
+    -- Creation
+    , empty = Just <| OpaqueDict.empty identity
+    , singleton = Just <| OpaqueDict.singleton identity
+    , fromList = Just <| OpaqueDict.fromList identity
+
+    -- Updating
+    , insert = Just OpaqueDict.insert
+    , update = Just OpaqueDict.update
+    , remove = Just OpaqueDict.remove
+    , map = Just OpaqueDict.map
+    , filter = Just OpaqueDict.filter
+    , union = Just OpaqueDict.union
+    , intersect = Just OpaqueDict.intersect
+    , diff = Just OpaqueDict.diff
+
+    -- Querying
+    , size = Just OpaqueDict.size
+    , isEmpty = Just OpaqueDict.isEmpty
+    , member = Just OpaqueDict.member
+    , get = Just OpaqueDict.get
+    , toList = Just OpaqueDict.toList
+    , foldl = Just OpaqueDict.foldl
+    , foldr = Just OpaqueDict.foldr
+    , partition = Just OpaqueDict.partition
+    , keys = Just OpaqueDict.keys
+    , values = Just OpaqueDict.values
+    , merge = Just OpaqueDict.merge
+    }
+
+-}
 type alias DictAPI d =
     -- Debug.toString
     { dictToString : d -> String
@@ -96,13 +133,34 @@ elmCoreDict =
 -- TESTS
 
 
+{-| Given a record of your Dict functions, this function will run a
+comprehensive suite of tests against them, comparing them to the elm/core Dict.
+
+It will:
+
+  - Create the initial Dict using a random constructor (like `empty`, `singleton` or `fromList`)
+  - Run a random sequence of "updating" actions on it (like `insert`, `filter`, `diff` etc.)
+  - Query the final Dict using a random function (like `size`, `get`, `partition`, `toList` etc.)
+
+The process above will run on both _your_ Dict and the `elm/core` Dict in
+tandem. (The same commands will run for both.)
+
+There should be no visible difference in behaviour: eg. order of items given
+from `toList` should be the same.
+
+This helps prevent subtle surprises when users switch between Dict
+implementations, like `update key (\_ -> Nothing)` not removing items from the
+Dict (a real bug in one of the 3rd-party Dicts!).
+
+-}
 isDict : DictAPI d -> Test
 isDict c =
     Test.describe "Conformance to elm/core Dict"
         [ creationConformance c
         , queryingConformance c
 
-        {- Updating conformance is already tested thanks to us using
+        {- Conformance for updating functions (like `map`, `insert` etc.)
+           is already tested thanks to using
            `Update.fuzzer` in all the ArchitectureTest invocations.
         -}
         ]
