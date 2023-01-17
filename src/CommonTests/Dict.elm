@@ -1,6 +1,7 @@
 module CommonTests.Dict exposing
     ( DictAPI
     , isDict
+    , isUnorderedDict
     )
 
 import ArchitectureTest exposing (TestedApp)
@@ -156,8 +157,8 @@ Dict (a real bug in one of the 3rd-party Dicts!).
 isDict : DictAPI d -> Test
 isDict c =
     Test.describe "Conformance to elm/core Dict"
-        [ creationConformance c
-        , queryingConformance c
+        [ creationConformance Ordered c
+        , queryingConformance Ordered c
 
         {- Conformance for updating functions (like `map`, `insert` etc.)
            is already tested thanks to using
@@ -166,15 +167,68 @@ isDict c =
         ]
 
 
-creationConformance : DictAPI d -> Test
-creationConformance c =
+{-| Same as `isDict`, but doesn't care about the order of lists gathered from
+query Dict functions like `keys`, `toList`, `partition` etc.
+
+(Note folds on unordered lists might also behave differently if your combining
+function is not commutative, given the order is not guaranteed. As such, this
+test suite will only check that all items are used in the fold.)
+
+-}
+isUnorderedDict : DictAPI d -> Test
+isUnorderedDict c =
+    Test.describe "Conformance to elm/core Dict (unordered)"
+        [ creationConformance Unordered c
+        , queryingConformance Unordered c
+
+        {- Conformance for updating functions (like `map`, `insert` etc.)
+           is already tested thanks to using
+           `Update.fuzzer` in all the ArchitectureTest invocations.
+        -}
+        ]
+
+
+type Ordering
+    = Ordered
+    | Unordered
+
+
+expectEqualLists : Ordering -> List comparable -> List comparable -> Expectation
+expectEqualLists ordering =
+    case ordering of
+        Unordered ->
+            \l1 l2 -> Expect.equal (List.sort l2) (List.sort l1)
+
+        Ordered ->
+            \l1 l2 -> Expect.equal l2 l1
+
+
+expectEqualPartitions : Ordering -> ( List comparable, List comparable ) -> ( List comparable, List comparable ) -> Expectation
+expectEqualPartitions ordering =
+    case ordering of
+        Unordered ->
+            \( p1l1, p1l2 ) ( p2l1, p2l2 ) ->
+                Expect.equal
+                    ( List.sort p2l1
+                    , List.sort p2l2
+                    )
+                    ( List.sort p1l1
+                    , List.sort p1l2
+                    )
+
+        Ordered ->
+            \p1 p2 -> Expect.equal p2 p1
+
+
+creationConformance : Ordering -> DictAPI d -> Test
+creationConformance ordering c =
     Create.all
-        |> List.map (behavesLikeDictWhenCreatedVia c)
+        |> List.map (behavesLikeDictWhenCreatedVia ordering c)
         |> Test.describe "Creation"
 
 
-queryingConformance : DictAPI d -> Test
-queryingConformance c =
+queryingConformance : Ordering -> DictAPI d -> Test
+queryingConformance ordering c =
     test "Querying" (initFuzzerUsingAll c) <|
         \label initFuzzer_ ->
             let
@@ -204,7 +258,7 @@ queryingConformance c =
             in
             Test.fuzz2 Query.fuzzer modelFuzzer label <|
                 \query ( testedDict, coreDict ) ->
-                    case queryToExpectation c query of
+                    case queryToExpectation ordering c query of
                         Nothing ->
                             {- We're passing because we don't want non-implemented Dict APIs to cause failures.
                                We're only testing their behaviour if those functions are present.
@@ -221,8 +275,8 @@ queryingConformance c =
 -- Tests using random sequences of operations
 
 
-behavesLikeDictWhenCreatedVia : DictAPI d -> Create -> Test
-behavesLikeDictWhenCreatedVia c create =
+behavesLikeDictWhenCreatedVia : Ordering -> DictAPI d -> Create -> Test
+behavesLikeDictWhenCreatedVia ordering c create =
     test2 (Create.label create)
         c.toList
         (initFuzzer c create)
@@ -252,7 +306,7 @@ behavesLikeDictWhenCreatedVia c create =
             ArchitectureTest.invariantTest label testedApp <|
                 \_ _ ( testedDict, coreDict ) ->
                     toList testedDict
-                        |> Expect.equalLists (Dict.toList coreDict)
+                        |> expectEqualLists ordering (Dict.toList coreDict)
 
 
 dictAndCoreDictToString : DictAPI d -> ( d, Dict String Int ) -> String
@@ -400,8 +454,8 @@ updateCoreDict update dict =
 -- QUERY
 
 
-queryToExpectation : DictAPI d -> Query -> Maybe (d -> Dict String Int -> Expectation)
-queryToExpectation c query =
+queryToExpectation : Ordering -> DictAPI d -> Query -> Maybe (d -> Dict String Int -> Expectation)
+queryToExpectation ordering c query =
     let
         go0 :
             (DictAPI d -> Maybe (d -> a))
@@ -413,6 +467,18 @@ queryToExpectation c query =
                     (\dictFn dict coreDict ->
                         dictFn dict
                             |> Expect.equal (coreDictFn coreDict)
+                    )
+
+        go0List :
+            (DictAPI d -> Maybe (d -> List comparable))
+            -> (Dict String Int -> List comparable)
+            -> Maybe (d -> Dict String Int -> Expectation)
+        go0List dictFnGetter coreDictFn =
+            dictFnGetter c
+                |> Maybe.map
+                    (\dictFn dict coreDict ->
+                        dictFn dict
+                            |> expectEqualLists ordering (coreDictFn coreDict)
                     )
 
         go1 :
@@ -428,18 +494,18 @@ queryToExpectation c query =
                             |> Expect.equal (coreDictFn arg1 coreDict)
                     )
 
-        go2 :
-            (DictAPI d -> Maybe (x1 -> x2 -> d -> a))
-            -> (x1 -> x2 -> Dict String Int -> a)
+        goFold :
+            (DictAPI d -> Maybe (x1 -> x2 -> d -> List comparable))
+            -> (x1 -> x2 -> Dict String Int -> List comparable)
             -> x1
             -> x2
             -> Maybe (d -> Dict String Int -> Expectation)
-        go2 dictFnGetter coreDictFn arg1 arg2 =
+        goFold dictFnGetter coreDictFn arg1 arg2 =
             dictFnGetter c
                 |> Maybe.map
                     (\dictFn dict coreDict ->
                         dictFn arg1 arg2 dict
-                            |> Expect.equal (coreDictFn arg1 arg2 coreDict)
+                            |> expectEqualLists ordering (coreDictFn arg1 arg2 coreDict)
                     )
 
         {- This would normally be go1, but we need to convert the result of
@@ -460,7 +526,7 @@ queryToExpectation c query =
                 (\partition toList dict coreDict ->
                     partition arg1 dict
                         |> Tuple.mapBoth toList toList
-                        |> Expect.equal
+                        |> expectEqualPartitions ordering
                             (Dict.partition arg1 coreDict
                                 |> Tuple.mapBoth Dict.toList Dict.toList
                             )
@@ -493,7 +559,7 @@ queryToExpectation c query =
             Maybe.map2
                 (\merge fromList dict coreDict ->
                     merge xLeft xBoth xRight dict (fromList other) init
-                        |> Expect.equal (Dict.merge xLeft xBoth xRight coreDict (Dict.fromList other) init)
+                        |> expectEqualLists ordering (Dict.merge xLeft xBoth xRight coreDict (Dict.fromList other) init)
                 )
                 c.merge
                 c.fromList
@@ -512,10 +578,10 @@ queryToExpectation c query =
             go1 .get Dict.get k
 
         FoldlCons init ->
-            go2 .foldl Dict.foldl (\_ v acc -> v :: acc) init
+            goFold .foldl Dict.foldl (\_ v acc -> v :: acc) init
 
         FoldrCons init ->
-            go2 .foldr Dict.foldr (\_ v acc -> v :: acc) init
+            goFold .foldr Dict.foldr (\_ v acc -> v :: acc) init
 
         PartitionEvenOdd ->
             goPartition (\_ v -> modBy 2 v == 0)
@@ -529,10 +595,10 @@ queryToExpectation c query =
                 init
 
         Keys ->
-            go0 .keys Dict.keys
+            go0List .keys Dict.keys
 
         Values ->
-            go0 .values Dict.values
+            go0List .values Dict.values
 
         ToList ->
-            go0 .toList Dict.toList
+            go0List .toList Dict.toList
