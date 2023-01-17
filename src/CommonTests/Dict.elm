@@ -1,8 +1,14 @@
 module CommonTests.Dict exposing
-    ( DictAPI
-    , isDict
-    , isUnorderedDict
+    ( isDict, isUnorderedDict
+    , DictAPI
     )
+
+{-|
+
+@docs isDict, isUnorderedDict
+@docs DictAPI
+
+-}
 
 import ArchitectureTest exposing (TestedApp)
 import CommonTests.Dict.Create as Create exposing (Create(..))
